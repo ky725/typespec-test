@@ -17,7 +17,7 @@ jobs:
     steps:
       # リポジトリのコードをチェックアウトするアクション
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v5
       # シェルコマンドを実行するステップ（ここでHello, World!を出力する）
       - name: Hello
         run: echo "Hello, World!"
