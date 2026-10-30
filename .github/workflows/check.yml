@@ -22,7 +22,7 @@ jobs:
       - run: npx tsp compile .
       - name: openapi.yamlが最新か確認
         run: |
-          if ! git diff --exit-code dist/openapi.yaml; then
+          if ! git diff --exit-code tsp-output/schema/openapi.yaml; then
             echo "::error::openapi.yaml が最新ではありません。npx tsp compile . を実行してコミットしてください"
             exit 1
           fi
@@ -33,16 +33,25 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - run: git show origin/${{ github.base_ref }}:dist/openapi.yaml > base.yaml
+      - run: git show origin/${{ github.base_ref }}:tsp-output/schema/openapi.yaml > base.yaml
       - name: 破壊的変更の検出
         if: ${{ !contains(github.event.pull_request.labels.*.name, 'breaking-change') }}
-        uses: oasdiff/oasdiff-action/breaking@v0.0.21
+        uses: oasdiff/oasdiff-action/breaking@v0.1.21
         with:
           base: base.yaml
-          revision: dist/openapi.yaml
+          revision: tsp-output/schema/openapi.yaml
           fail-on: ERR
-      - name: 変更点をPRにコメント
-        uses: oasdiff/oasdiff-action/pr-comment@v0.0.21
+          review: false # 仕様をoasdiff.comへアップロードしない
+      - name: 変更点の抽出
+        id: changelog
+        uses: oasdiff/oasdiff-action/changelog@v0.1.21
         with:
           base: base.yaml
-          revision: dist/openapi.yaml
+          revision: tsp-output/schema/openapi.yaml
+          review: false # 仕様をoasdiff.comへアップロードしない
+      - name: 変更点をPRにコメント
+        if: ${{ steps.changelog.outputs.changelog != '' }}
+        uses: peter-evans/create-or-update-comment@v5
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          body: ${{ steps.changelog.outputs.changelog }}
