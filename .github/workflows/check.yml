@@ -1,0 +1,48 @@
+name: check
+on: pull_request
+
+permissions:
+  contents: read
+  pull-requests: write # PRへのコメント用
+
+concurrency:
+  group: check-${{ github.event.pull_request.number }}
+  cancel-in-progress: true # 連続pushで古い実行を止める
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx tsp compile .
+      - name: openapi.yamlが最新か確認
+        run: |
+          if ! git diff --exit-code dist/openapi.yaml; then
+            echo "::error::openapi.yaml が最新ではありません。npx tsp compile . を実行してコミットしてください"
+            exit 1
+          fi
+
+  breaking:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: git show origin/${{ github.base_ref }}:dist/openapi.yaml > base.yaml
+      - name: 破壊的変更の検出
+        if: ${{ !contains(github.event.pull_request.labels.*.name, 'breaking-change') }}
+        uses: oasdiff/oasdiff-action/breaking@v0.0.21
+        with:
+          base: base.yaml
+          revision: dist/openapi.yaml
+          fail-on: ERR
+      - name: 変更点をPRにコメント
+        uses: oasdiff/oasdiff-action/pr-comment@v0.0.21
+        with:
+          base: base.yaml
+          revision: dist/openapi.yaml
