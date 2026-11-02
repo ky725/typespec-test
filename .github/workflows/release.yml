@@ -1,0 +1,74 @@
+name: release
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false # 公開処理は途中で止めない
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
+      prerelease: ${{ steps.ver.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - run: npm ci
+
+      - name: タグからバージョンを取得し、package.jsonと照合
+        id: ver
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          if [ "$VERSION" != "$PKG_VERSION" ]; then
+            echo "::error::タグ($VERSION)とpackage.json($PKG_VERSION)のバージョンが一致しません"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          if [[ "$VERSION" == *-* ]]; then
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: openapi.yamlが最新か確認
+        run: |
+          npx tsp compile .
+          git diff --exit-code tsp-output/schema/openapi.yaml
+
+  publish-npm:
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          registry-url: https://npm.pkg.github.com
+      - run: npm ci
+      - name: 公開
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.verify.outputs.version }}
+          PRERELEASE: ${{ needs.verify.outputs.prerelease }}
+        run: |
+          PKG=$(node -p "require('./package.json').name")
+          # 再実行時に409で落ちないよう、公開済みならスキップする
+          if npm view "$PKG@$VERSION" version >/dev/null 2>&1; then
+            echo "::notice::$PKG@$VERSION は公開済みのためスキップします"
+            exit 0
+          fi
+          if [ "$PRERELEASE" = "true" ]; then
+            npm publish --tag beta
+          else
+            npm publish
+          fi
