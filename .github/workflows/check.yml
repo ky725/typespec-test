@@ -1,5 +1,7 @@
 name: check
-on: pull_request
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
 
 permissions:
   contents: read
@@ -34,8 +36,21 @@ jobs:
         with:
           fetch-depth: 0
       - run: git show origin/${{ github.base_ref }}:tsp-output/schema/openapi.yaml > base.yaml
+      - name: breaking-changeラベルの確認
+        id: labels
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          # 再実行では古いイベントペイロードが使われるため、実行時にAPIから取得する
+          if gh pr view "$PR_NUMBER" --json labels --jq '.labels[].name' | grep -qx 'breaking-change'; then
+            echo "::notice::breaking-changeラベルが付いているため破壊的変更の検出をスキップします"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
       - name: 破壊的変更の検出
-        if: ${{ !contains(github.event.pull_request.labels.*.name, 'breaking-change') }}
+        if: ${{ steps.labels.outputs.skip != 'true' }}
         uses: oasdiff/oasdiff-action/breaking@v0.1.21
         with:
           base: base.yaml
