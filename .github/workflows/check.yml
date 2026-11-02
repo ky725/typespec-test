@@ -51,7 +51,8 @@ jobs:
           review: false # 仕様をoasdiff.comへアップロードしない
       - name: 変更点をPRにコメント
         if: ${{ steps.changelog.outputs.changelog != '' }}
-        uses: peter-evans/create-or-update-comment@v5
-        with:
-          issue-number: ${{ github.event.pull_request.number }}
-          body: ${{ steps.changelog.outputs.changelog }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          gh pr comment "$PR_NUMBER" --body "${{ steps.changelog.outputs.changelog }}"
