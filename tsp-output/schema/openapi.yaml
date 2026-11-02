@@ -178,11 +178,15 @@ components:
       required:
         - id
         - weight
+        - height
         - color
       properties:
         id:
           type: string
         weight:
+          type: integer
+          format: int32
+        height:
           type: integer
           format: int32
         color:
@@ -205,6 +209,9 @@ components:
         id:
           type: string
         weight:
+          type: integer
+          format: int32
+        height:
           type: integer
           format: int32
         color:

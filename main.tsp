@@ -7,6 +7,7 @@ namespace DemoService;
 model Widget {
   id: string;
   weight: int32;
+  height: int32;
   color: "red" | "blue";
 }
 
@@ -35,7 +36,9 @@ interface Widgets {
   /** Create a widget */
   @post create(@body body: Widget): Widget | Error;
   /** Update a widget */
-  @patch update(@path id: string, @body body: MergePatchUpdate<Widget>): Widget | Error;
+  @patch update(@path id: string, @body body: MergePatchUpdate<Widget>):
+    | Widget
+    | Error;
   /** Delete a widget */
   @delete delete(@path id: string): void | Error;
 
