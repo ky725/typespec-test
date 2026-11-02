@@ -1,0 +1,74 @@
+name: check
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+permissions:
+  contents: read
+  pull-requests: write # PRへのコメント用
+
+concurrency:
+  group: check-${{ github.event.pull_request.number }}
+  cancel-in-progress: true # 連続pushで古い実行を止める
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx tsp compile .
+      - name: openapi.yamlが最新か確認
+        run: |
+          if ! git diff --exit-code tsp-output/schema/openapi.yaml; then
+            echo "::error::openapi.yaml が最新ではありません。npx tsp compile . を実行してコミットしてください"
+            exit 1
+          fi
+
+  breaking:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - run: git show origin/${{ github.base_ref }}:tsp-output/schema/openapi.yaml > base.yaml
+      - name: breaking-changeラベルの確認
+        id: labels
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          # 再実行では古いイベントペイロードが使われるため、実行時にAPIから取得する
+          if gh pr view "$PR_NUMBER" --json labels --jq '.labels[].name' | grep -qx 'breaking-change'; then
+            echo "::notice::breaking-changeラベルが付いているため破壊的変更の検出をスキップします"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: 破壊的変更の検出
+        if: ${{ steps.labels.outputs.skip != 'true' }}
+        uses: oasdiff/oasdiff-action/breaking@v0.1.21
+        with:
+          base: base.yaml
+          revision: tsp-output/schema/openapi.yaml
+          fail-on: ERR
+          review: false # 仕様をoasdiff.comへアップロードしない
+      - name: 変更点の抽出
+        id: changelog
+        uses: oasdiff/oasdiff-action/changelog@v0.1.21
+        with:
+          base: base.yaml
+          revision: tsp-output/schema/openapi.yaml
+          review: false # 仕様をoasdiff.comへアップロードしない
+      - name: 変更点をPRにコメント
+        if: ${{ steps.changelog.outputs.changelog != '' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BODY: ${{ steps.changelog.outputs.changelog }}
+        run: |
+          gh pr comment "$PR_NUMBER" --body "$BODY"
