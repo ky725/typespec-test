@@ -1,6 +1,6 @@
 {
   "name": "@ky725/typespec-test",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "API定義(OpenAPI)",
   "type": "module",
   "files": ["tsp-output/schema/openapi.yaml"],
