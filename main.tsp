@@ -8,6 +8,7 @@ model Widget {
   id: string;
   weight: int32;
   height: int32;
+  width: int32;
   color: "red" | "blue";
 }
 
