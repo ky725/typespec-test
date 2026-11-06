@@ -9,7 +9,7 @@ version = System.getenv("VERSION") ?: "0.0.0-SNAPSHOT"
 publishing {
   publications {
     create<MavenPublication>("spec") {
-      artifactId = "api-spec"
+      artifactId = "typespec-test"
       artifact(file("tsp-output/schema/openapi.yaml")) {
         extension = "yaml"
       }
