@@ -19,18 +19,15 @@ jobs:
       prerelease: ${{ steps.ver.outputs.prerelease }}
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
         with:
-          node-version: 24
-      - run: npm ci
+          fetch-depth: 0
 
-      - name: タグからバージョンを取得し、package.jsonと照合
+      - name: タグからバージョンを取得
         id: ver
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          PKG_VERSION=$(node -p "require('./package.json').version")
-          if [ "$VERSION" != "$PKG_VERSION" ]; then
-            echo "::error::タグ($VERSION)とpackage.json($PKG_VERSION)のバージョンが一致しません"
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::タグ $GITHUB_REF_NAME はセマンティックバージョンの形式ではありません"
             exit 1
           fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
@@ -40,6 +37,17 @@ jobs:
             echo "prerelease=false" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: タグがmain上のコミットか確認
+        run: |
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::タグがmainブランチのコミットを指していません"
+            exit 1
+          fi
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - run: npm ci
       - name: openapi.yamlが最新か確認
         run: |
           npx tsp compile .
@@ -55,6 +63,10 @@ jobs:
           node-version: 24
           registry-url: https://npm.pkg.github.com
       - run: npm ci
+
+      - name: package.jsonのバージョンを書き換え(コミットしない)
+        run: npm version "${{ needs.verify.outputs.version }}" --no-git-tag-version
+
       - name: 公開
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
