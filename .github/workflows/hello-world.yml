@@ -3,7 +3,7 @@ name: Hello World
 # ワークフローのトリガーとなるイベントを指定する
 on:
   # すべてのブランチへのプッシュ時に実行
-  push:
+  # push:
   # GitHub上から手動で実行する
   workflow_dispatch:
 
