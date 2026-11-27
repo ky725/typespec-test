@@ -179,6 +179,7 @@ components:
         - id
         - weight
         - height
+        - width
         - color
       properties:
         id:
@@ -187,6 +188,9 @@ components:
           type: integer
           format: int32
         height:
+          type: integer
+          format: int32
+        width:
           type: integer
           format: int32
         color:
@@ -212,6 +216,9 @@ components:
           type: integer
           format: int32
         height:
+          type: integer
+          format: int32
+        width:
           type: integer
           format: int32
         color:
